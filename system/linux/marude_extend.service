@@ -3,8 +3,8 @@ Description=marude extend service
 After=network.target
 
 [Service]
-Type=forking
-ExecStart=/usr/local/marude_extend
+Type=simple
+ExecStart=/usr/local/marude/marude_extend
 ExecStop=/bin/kill -9 $MAINPID
 
 [Install]

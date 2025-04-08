@@ -9,7 +9,8 @@ serv_install() {
 	cp $1 $FOLDER_NAME
 	cp *.service $FOLDER_NAME
 	cp conf/*.sample /etc/marude
-	ln -s *.service /lib/systemd/system/
+	cp *.service /lib/systemd/system/
+	systemctl daemon-reload
 	systemctl enable $1
 	systemctl start $1
 }

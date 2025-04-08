@@ -63,7 +63,7 @@ exit /b
 	if not exist %ProgramData%/marude md %ProgramData%/marude
 	copy /y %APP_NAME% %FOLDER_NAME%
 	copy /y conf/*.sample %ProgramData%/marude
-    sc create %SERVICE_NAME% binPath= %FOLDER_NAME% DisplayName= %DISPLAY_NAME% start= auto
+    sc create %SERVICE_NAME% binPath= %FOLDER_NAME%/%APP_NAME% DisplayName= %DISPLAY_NAME% start= auto
     sc description %SERVICE_NAME% %DESC%
     sc failure %SERVICE_NAME% reset= 86400 actions= restart/5000
     echo finished install

@@ -3,8 +3,8 @@ Description=marude server service
 After=network.target
 
 [Service]
-Type=forking
-ExecStart=/usr/local/marude_server
+Type=simple
+ExecStart=/usr/local/marude/marude_server
 ExecStop=/bin/kill -9 $MAINPID
 
 [Install]
