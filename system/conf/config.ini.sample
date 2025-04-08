@@ -1,0 +1,24 @@
+[server]
+ip=192.168.10.5
+port=25300
+
+[init]
+adbusb=123456789
+adbusb=abcdefghi
+adbip=192.168.10.111
+adbip=192.168.10.112
+clientport=25305
+name=Doraemon
+nettype=wifi
+
+[case "001"]
+exec="echo run command"
+adbdevice=192.168.10.111
+uart=/dev/ttyUSB1
+single=yes
+
+[case "002"]
+exec="echo run command2"
+adbdevice=192.168.10.112
+uart=/dev/ttyUSB3
+single=yes
