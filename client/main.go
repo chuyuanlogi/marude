@@ -2,22 +2,23 @@ package main
 
 import (
 	"fmt"
-	"log"
-	"os/exec"
 	"io"
+	"log"
 	"os"
+	"os/exec"
 
 	"doraemon.pocket/common"
 
 	"github.com/gofiber/fiber/v2"
-	"github.com/smallnest/ringbuffer"
 	"github.com/sirupsen/logrus"
+	"github.com/smallnest/ringbuffer"
 	"github.com/spf13/cobra"
 )
 
 const CONFIG_FILE string = "config.ini"
 
 type Status int
+
 const (
 	Idle Status = iota
 	Running
@@ -25,81 +26,38 @@ const (
 )
 
 type RunStatus struct {
-	status Status
+	status  Status
 	cmdline string
-	c *exec.Cmd
-	rb *ringbuffer.RingBuffer
+	c       *exec.Cmd
+	rb      *ringbuffer.RingBuffer
 }
 
 var Glogger *logrus.Logger
 var Version = "debug"
+var Gapp *fiber.App
 
 func initRunStatus(cfg *CfgData, caseStatus map[string]*RunStatus) bool {
 	for k, v := range cfg.Case {
 		caseStatus[k] = &RunStatus{
-			status: Idle,
+			status:  Idle,
 			cmdline: v.Exec,
-			c: nil,
-			rb: ringbuffer.New(256*1024).SetBlocking(true),
+			c:       nil,
+			rb:      ringbuffer.New(256 * 1024).SetBlocking(true),
 		}
 	}
 	return true
 }
 
-type readonly struct { io.Reader }
+type readonly struct{ io.Reader }
+
 func (readonly) Close() error { return nil }
 func removeCloseMethod(rc io.ReadCloser) io.Reader {
 	return readonly{rc}
 }
 
-func main() {
-	var show_version bool = false
-	argparse := &cobra.Command{
-		Use:	"marude_client [--version]",
-		Short:	"run long time stress test tool client",
-		Run: func(cmd *cobra.Command, argv []string) {
-			if show_version {
-				fmt.Printf("version: %s\n", Version)
-				os.Exit(0)
-			}
-		},
-	}
-	argparse.SetHelpFunc(func(cmd *cobra.Command, argv []string){
-		fmt.Printf("%s\n\n", cmd.Short)
-		fmt.Println(cmd.UsageString())
-		os.Exit(0)
-	})
-	argparse.Flags().BoolVar(&show_version, "version", false, "show current version")
-	if err := argparse.Execute(); err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	}
-
-	logger, err := common.InitLog("")
-
-	if err != nil {
-		log.Fatalf("logger create failed: %v\n", err)
-	}
-
-	Glogger = logger
-
-	if !read_config_file(CONFIG_FILE) {
-		return
-	}
-
-	cfg := get_config()
-
-	caseStatus := make(map[string]*RunStatus)
-	initRunStatus(cfg, caseStatus)
-
-	fmt.Println(fmt.Sprintf(":%s", cfg.Init.ClientPort))
-
-	if !register(cfg) {
-		Glogger.Fatal("Register failed!\n")
-		return
-	}
-
+func fiber_service(cfg *CfgData, caseStatus map[string]*RunStatus) {
 	app := fiber.New()
+	Gapp = app
 
 	app.Get("/run/*", func(c *fiber.Ctx) error {
 		arg := c.Params("*1")
@@ -156,7 +114,7 @@ func main() {
 		if ok {
 			if s.status == Finished {
 				fmt.Printf("try to resume!!\n")
-				reader:= removeCloseMethod(s.rb.ReadCloser())
+				reader := removeCloseMethod(s.rb.ReadCloser())
 				s.status = Idle
 				s.c = nil
 				return c.SendStream(reader)
@@ -164,9 +122,9 @@ func main() {
 				s.status = Idle
 				s.c = nil
 				return c.SendString("the case is not running now\n")
-			} else if (s.c != nil && s.rb != nil) {
+			} else if s.c != nil && s.rb != nil {
 				fmt.Printf("try to resume!!\n")
-				reader:= removeCloseMethod(s.rb.ReadCloser())
+				reader := removeCloseMethod(s.rb.ReadCloser())
 				return c.SendStream(reader)
 			}
 		}
@@ -189,13 +147,61 @@ func main() {
 				return c.SendString("process is terminated\n")
 			}
 
-			
 		}
 
 		return c.SendString("the case is not supported\n")
 	})
 
-
 	Glogger.Fatal(app.Listen(fmt.Sprintf(":%s", cfg.Init.ClientPort)))
-	
+}
+
+func main() {
+	var show_version bool = false
+	argparse := &cobra.Command{
+		Use:   "marude_client [--version]",
+		Short: "run long time stress test tool client",
+		Run: func(cmd *cobra.Command, argv []string) {
+			if show_version {
+				fmt.Printf("version: %s\n", Version)
+				os.Exit(0)
+			}
+		},
+	}
+	argparse.SetHelpFunc(func(cmd *cobra.Command, argv []string) {
+		fmt.Printf("%s\n\n", cmd.Short)
+		fmt.Println(cmd.UsageString())
+		os.Exit(0)
+	})
+	argparse.Flags().BoolVar(&show_version, "version", false, "show current version")
+	if err := argparse.Execute(); err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+
+	logger, err := common.InitLog("")
+
+	if err != nil {
+		log.Fatalf("logger create failed: %v\n", err)
+	}
+
+	Glogger = logger
+
+	if !read_config_file(CONFIG_FILE) {
+		return
+	}
+
+	cfg := get_config()
+
+	caseStatus := make(map[string]*RunStatus)
+	initRunStatus(cfg, caseStatus)
+
+	fmt.Println(fmt.Sprintf(":%s", cfg.Init.ClientPort))
+
+	if !register(cfg) {
+		Glogger.Fatal("Register failed!\n")
+		return
+	}
+
+	Init_service(cfg, caseStatus)
+
 }
