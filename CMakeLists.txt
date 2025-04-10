@@ -54,3 +54,4 @@ endfunction()
 
 build_go(server "${CMAKE_CURRENT_LIST_DIR}/server" "")
 build_go(client "${CMAKE_CURRENT_LIST_DIR}/client" "")
+build_go(ctrl "${CMAKE_CURRENT_LIST_DIR}/ctrl" "")

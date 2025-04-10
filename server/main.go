@@ -1,39 +1,41 @@
 package main
 
 import (
-	"log"
+	"bytes"
 	"fmt"
+	"io"
+	"log"
+	"os"
 	"regexp"
 	"strings"
-	"io"
-	"os"
 
 	"doraemon.pocket/common"
 
 	"github.com/gofiber/fiber/v2"
-	"github.com/smallnest/ringbuffer"
 	"github.com/sirupsen/logrus"
+	"github.com/smallnest/ringbuffer"
 	"github.com/spf13/cobra"
 )
 
 const CONFIG_FILE string = "marude.conf"
 
 type ClientDevice struct {
-	Ip		string
-	Serial	string
+	Ip     string
+	Serial string
 }
 
 type DeClient struct {
-	Ip		string
-	Port	string
+	Ip      string
+	Port    string
 	RingBuf *ringbuffer.RingBuffer
-	Dev		[]ClientDevice
+	Dev     []ClientDevice
 }
 
 var Glogger *logrus.Logger
 var Version = "debug"
 
-type readonly struct { io.Reader }
+type readonly struct{ io.Reader }
+
 func (readonly) Close() error { return nil }
 func removeCloseMethod(rc io.ReadCloser) io.Reader {
 	return readonly{rc}
@@ -54,11 +56,11 @@ func queries(c *fiber.Ctx) (name string, client *DeClient, err error) {
 	params := c.Queries()
 	Glogger.Infof("remote connection parameters: %v\n", params)
 
-	client = &DeClient {
-		Ip: params["ip"],
-		Port: params["port"],
-		Dev: []ClientDevice{},
-		RingBuf: ringbuffer.New(256*1024).SetBlocking(true),
+	client = &DeClient{
+		Ip:      params["ip"],
+		Port:    params["port"],
+		Dev:     []ClientDevice{},
+		RingBuf: ringbuffer.New(256 * 1024).SetBlocking(true),
 	}
 	name = params["name"]
 
@@ -93,8 +95,8 @@ func queries(c *fiber.Ctx) (name string, client *DeClient, err error) {
 func main() {
 	var show_version bool = false
 	argparse := &cobra.Command{
-		Use:	"marude_server [--version]",
-		Short:	"run long time stress test tool server",
+		Use:   "marude_server [--version]",
+		Short: "run long time stress test tool server",
 		Run: func(cmd *cobra.Command, argv []string) {
 			if show_version {
 				fmt.Printf("version: %s\n", Version)
@@ -102,7 +104,7 @@ func main() {
 			}
 		},
 	}
-	argparse.SetHelpFunc(func(cmd *cobra.Command, argv []string){
+	argparse.SetHelpFunc(func(cmd *cobra.Command, argv []string) {
 		fmt.Printf("%s\n\n", cmd.Short)
 		fmt.Println(cmd.UsageString())
 		os.Exit(0)
@@ -142,7 +144,7 @@ func main() {
 		if !ok {
 			Glogger.Infof("new register: %v\n", client)
 			clients[name] = client
-			
+
 		} else {
 			res = "Registered!!\n"
 		}
@@ -185,8 +187,8 @@ func main() {
 			res = res + fmt.Sprintf("client: %s, ip: %s:%s\n", k, v.Ip, v.Port)
 
 			client_request(v, ReqClient{
-				client_name: k,
-				method_params: []string{ "list" },
+				client_name:   k,
+				method_params: []string{"list"},
 			})
 
 			buf := make([]byte, 256)
@@ -200,8 +202,8 @@ func main() {
 				casename := res_strlist[i][6:]
 				res = res + fmt.Sprintf("\tcase: %s -- device: %s, device ip: %s\n", casename, d.Serial, d.Ip)
 				client_request(v, ReqClient{
-					client_name: k,
-					method_params: []string{ "status", casename },
+					client_name:   k,
+					method_params: []string{"status", casename},
 				})
 
 				leng, _ = v.RingBuf.Read(buf)
@@ -213,6 +215,10 @@ func main() {
 	})
 
 	app.Get("/run_case", func(c *fiber.Ctx) error {
+		c.Set("Content-Type", "application/octet-stream")
+		c.Set("Transfer-Encoding", "chunked")
+		c.Set("Cache-Control", "no-cache")
+		c.Set("Connection", "keep-alive")
 		params := c.Queries()
 
 		v, ok := params["name"]
@@ -223,7 +229,7 @@ func main() {
 		rc, ok := params["case"]
 		if !ok {
 			return c.Status(400).SendString(fmt.Sprintf("case [%v] is not registered\n", rc))
-		}		
+		}
 
 		gr, ok := params["fetch"]
 		if !ok {
@@ -231,17 +237,31 @@ func main() {
 		}
 
 		client, ok := clients[v]
-		if gr == "1" {
-			if !ok {
-				return c.Status(400).SendString(fmt.Sprintf("fetch result %s -- %s failed\n", v, rc))
-			}
+		if !ok {
+			return c.Status(400).SendString(fmt.Sprintf("fetch result %s -- %s failed\n", v, rc))
+		}
 
+		if gr == "1" {
+			//res, err := client_request(client, ReqClient{
+			//	client_name:   v,
+			//	method_params: []string{"resume", rc},
+			//})
 			reader := removeCloseMethod(client.RingBuf.ReadCloser())
 			return c.SendStream(reader)
+		} else if gr == "2" {
+			//res, err := client_request(client, ReqClient{
+			//	client_name:   v,
+			//	method_params: []string{"resume", rc},
+			//})
+			leng := client.RingBuf.Length()
+			data := make([]byte, leng)
+			client.RingBuf.Peek(data)
+			nreader := bytes.NewBuffer(data)
+			return c.SendStream(nreader)
 		} else {
-			err := client_request(client, ReqClient{
-				client_name: v,
-				method_params: []string{ "run", rc },
+			_, err := client_request(client, ReqClient{
+				client_name:   v,
+				method_params: []string{"run", rc},
 			})
 
 			if err != nil {
@@ -254,5 +274,5 @@ func main() {
 	})
 
 	Glogger.Fatal(app.Listen(fmt.Sprintf(":%s", cfg.Service.Port)))
-	
+
 }

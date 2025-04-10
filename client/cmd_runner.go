@@ -1,15 +1,15 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
-	"os/exec"
 	"io"
 	"os"
+	"os/exec"
 	"runtime"
 	"slices"
-	"time"
 	"strconv"
-	"bufio"
+	"time"
 
 	"github.com/google/shlex"
 	"go.bug.st/serial"
@@ -37,13 +37,20 @@ func run_win_cmd(cmd ...string) (c *exec.Cmd, outs CmdOut, err error) {
 }
 
 func run_linux_cmd(cmd ...string) (c *exec.Cmd, outs CmdOut, err error) {
-	v := make([]interface{}, len(cmd))
-	for i, s := range cmd {
-		v[i] = s
-	}
+	//v := make([]interface{}, len(cmd))
+	//for i, s := range cmd {
+	//	v[i] = s
+	//}
+	//arg := fmt.Sprintln(v)
+	//c = exec.Command("/bin/bash", "--login", "-c", arg)
+	//c = exec.Command(cmd[0], cmd[1:]...)
 
-	arg := fmt.Sprintln(v)
-	c = exec.Command("/bin/bash", "--login", "-c", arg)
+	if cmd[0][:6] == "python" {
+		c = exec.Command(cmd[0], cmd[1:]...)
+	} else if cmd[0][len(cmd[0])-3:] == ".sh" {
+		cmd = slices.Insert(cmd, 0, "--login")
+		c = exec.Command("/bin/bash", cmd...)
+	}
 	outs.out, _ = c.StdoutPipe()
 	outs.err, _ = c.StderrPipe()
 
@@ -89,7 +96,7 @@ func run_cmd(cfg *CfgCase, proc *RunStatus) (*exec.Cmd, error) {
 	var c *exec.Cmd = nil
 	var outs CmdOut
 
-	switch(runtime.GOOS) {
+	switch runtime.GOOS {
 	case "linux":
 		c, outs, err = run_linux_cmd(args...)
 		if err != nil {
@@ -158,7 +165,10 @@ func run_cmd(cfg *CfgCase, proc *RunStatus) (*exec.Cmd, error) {
 	Glogger.Infof("PID: %d command: %s is running\n", c.Process.Pid, cfg.Exec)
 
 	go func() {
-		c.Wait()
+		err := c.Wait()
+		if err != nil {
+			fmt.Println(err)
+		}
 		proc.status = Finished
 		proc.c = nil
 		if uart != nil {

@@ -2,35 +2,35 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"net"
-	"runtime"
-	"strings"
 	"net/http"
 	"net/url"
+	"runtime"
+	"strings"
 	"time"
-	"io"
 )
 
 func prefix_detect(net_type string, name string) bool {
 	prefix := []string{}
-	switch (net_type) {
+	switch net_type {
 	case "lan":
-		switch(runtime.GOOS) {
+		switch runtime.GOOS {
 		case "linux":
-			prefix = []string {"en", "eth"}
+			prefix = []string{"en", "eth"}
 		case "windows":
-			prefix = []string {"ethernet"}
+			prefix = []string{"ethernet"}
 		case "darwin":
-			prefix = []string {"en0"}
+			prefix = []string{"en0"}
 		}
 	case "wifi":
-		switch(runtime.GOOS) {
+		switch runtime.GOOS {
 		case "linux":
-			prefix = []string {"wl", "wlan"}
+			prefix = []string{"wl", "wlan"}
 		case "windows":
-			prefix = []string {"wi-fi", "wifi"}
+			prefix = []string{"wi-fi", "wifi"}
 		case "darwin":
-			prefix = []string {"en1"}
+			prefix = []string{"en1"}
 		}
 	}
 
@@ -51,7 +51,7 @@ func get_ip(net_type string) string {
 	}
 
 	for _, iface := range interf {
-		if iface.Flags & net.FlagUp == 0 {
+		if iface.Flags&net.FlagUp == 0 {
 			continue
 		}
 
@@ -111,10 +111,11 @@ func register(cfg *CfgData) bool {
 	if err != nil {
 		Glogger.Fatalf("register http request failed\n")
 	}
+	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusOK {
 		Glogger.Fatalf("server reject register\n")
-		return false	
+		return false
 	}
 
 	body, err := io.ReadAll(res.Body)

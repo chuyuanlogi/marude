@@ -60,6 +60,11 @@ func fiber_service(cfg *CfgData, caseStatus map[string]*RunStatus) {
 	Gapp = app
 
 	app.Get("/run/*", func(c *fiber.Ctx) error {
+		c.Set("Content-Type", "application/octet-stream")
+		c.Set("Transfer-Encoding", "chunked")
+		c.Set("Cache-Control", "no-cache")
+		c.Set("Connection", "keep-alive")
+
 		arg := c.Params("*1")
 		for key, value := range cfg.Case {
 			if arg == key {
@@ -108,6 +113,11 @@ func fiber_service(cfg *CfgData, caseStatus map[string]*RunStatus) {
 	})
 
 	app.Get("/resume/*", func(c *fiber.Ctx) error {
+		c.Set("Content-Type", "application/octet-stream")
+		c.Set("Transfer-Encoding", "chunked")
+		c.Set("Cache-Control", "no-cache")
+		c.Set("Connection", "keep-alive")
+
 		arg := c.Params("*1")
 
 		s, ok := caseStatus[arg]

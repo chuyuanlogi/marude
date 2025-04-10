@@ -16,11 +16,7 @@ func (f *LogFormatter) Format(entry *logrus.Entry) ([]byte, error) {
 	timestamp := entry.Time.Format("2006-01-02 15:04:05")
 	level := strings.ToUpper(entry.Level.String())
 	msg := entry.Message
-	
-	// 移除消息末尾的换行符(如果存在)
 	msg = strings.TrimSuffix(msg, "\n")
-	
-	// 构建自定义格式
 	logLine := fmt.Sprintf("%s [%s]\t%s\n", timestamp, level, msg)
 	return []byte(logLine), nil
 }
