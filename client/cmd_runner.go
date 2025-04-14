@@ -26,7 +26,7 @@ func run_win_cmd(cmd ...string) (c *exec.Cmd, outs CmdOut, err error) {
 	outs.out, _ = c.StdoutPipe()
 	outs.err, _ = c.StderrPipe()
 
-	fmt.Println(c.Path, c.Args)
+	Glogger.Println(c.Args)
 
 	err = c.Start()
 	if err != nil {
@@ -54,7 +54,7 @@ func run_linux_cmd(cmd ...string) (c *exec.Cmd, outs CmdOut, err error) {
 	outs.out, _ = c.StdoutPipe()
 	outs.err, _ = c.StderrPipe()
 
-	fmt.Println(c.Path, c.Args)
+	Glogger.Println(c.Args)
 
 	err = c.Start()
 	if err != nil {
@@ -75,7 +75,7 @@ func run_macos_cmd(cmd ...string) (c *exec.Cmd, outs CmdOut, err error) {
 	outs.out, _ = c.StdoutPipe()
 	outs.err, _ = c.StderrPipe()
 
-	fmt.Println(c.Path, c.Args)
+	Glogger.Println(c.Args)
 
 	err = c.Start()
 	if err != nil {
@@ -115,6 +115,8 @@ func run_cmd(cfg *CfgCase, proc *RunStatus) (*exec.Cmd, error) {
 			return nil, err
 		}
 	}
+
+	Glogger.Infof("run command: %s\n", cfg.Exec)
 
 	go func() {
 		proc.rb.ReadFrom(outs.out)

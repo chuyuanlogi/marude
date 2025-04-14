@@ -1,17 +1,18 @@
 package common
 
 import (
-	"runtime"
-	"os"
 	"fmt"
 	"io"
+	"os"
+	"runtime"
 	"strings"
 
 	"github.com/sirupsen/logrus"
 	"gopkg.in/natefinch/lumberjack.v2"
 )
 
-type LogFormatter struct {}
+type LogFormatter struct{}
+
 func (f *LogFormatter) Format(entry *logrus.Entry) ([]byte, error) {
 	timestamp := entry.Time.Format("2006-01-02 15:04:05")
 	level := strings.ToUpper(entry.Level.String())
@@ -28,7 +29,7 @@ func InitLog(path string) (*logrus.Logger, error) {
 
 	var log_path string
 
-	switch(runtime.GOOS) {
+	switch runtime.GOOS {
 	case "windows":
 		sysdata_path := os.Getenv("ProgramData")
 		log_path = fmt.Sprintf("%s/%s", sysdata_path, path)
@@ -36,6 +37,22 @@ func InitLog(path string) (*logrus.Logger, error) {
 		log_path = fmt.Sprintf("/var/log/%s", path)
 	case "darwin":
 		log_path = fmt.Sprintf("/Library/Application Support/%s", path)
+	}
+
+	ljack := &lumberjack.Logger{
+		Filename:   fmt.Sprintf("%s/marude.log", log_path),
+		MaxSize:    15,
+		MaxBackups: 5,
+		MaxAge:     30,
+		Compress:   true,
+	}
+	var writer io.Writer
+
+	switch runtime.GOOS {
+	case "windows":
+		writer = io.MultiWriter(ljack)
+	case "linux", "darwin":
+		writer = io.MultiWriter(os.Stdout, ljack)
 	}
 
 	err := os.MkdirAll(log_path, os.ModeDir)
@@ -48,14 +65,7 @@ func InitLog(path string) (*logrus.Logger, error) {
 
 	logger.SetFormatter(&LogFormatter{})
 
-	logger.SetOutput(io.MultiWriter(os.Stdout, &lumberjack.Logger{
-		Filename:		fmt.Sprintf("%s/marude.log", log_path),
-		MaxSize:		100,
-		MaxBackups:		5,
-		MaxAge:			30,
-		Compress:		true,
-	}))
-
+	logger.SetOutput(writer)
 
 	return logger, nil
 }
