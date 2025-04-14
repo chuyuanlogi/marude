@@ -77,6 +77,26 @@ func subCmdList(cmd *cobra.Command, args []string) {
 	}
 }
 
+func subCmdAskClientReg(cmd *cobra.Command, args []string) {
+	if Url[:5] != "http:" {
+		Url = "http://" + Url
+	}
+	if Url[len(Url)-1] == '/' {
+		Url = Url[:len(Url)-1]
+	}
+	parsed, err := url.Parse(Url)
+	if err != nil {
+		log.Printf("url parsing failed: %v\n", err)
+	}
+	if len(parsed.Port()) == 0 {
+		Url = fmt.Sprintf("http://%s:%s/%s", parsed.Host, "25305", "ask_reg")
+	}
+	requrl := fmt.Sprintf("%s", Url)
+	if !HttpGet(requrl, url.Values{}) {
+		log.Printf("command failed\n")
+	}
+}
+
 func main() {
 	argparse := &cobra.Command{
 		Use:   "marude_ctrl",
@@ -117,6 +137,11 @@ func main() {
 		Short: "list all machine and cases",
 		Run:   subCmdList,
 	}
+	askregCmd := &cobra.Command{
+		Use:   "askreg",
+		Short: "ask client to do the register process",
+		Run:   subCmdAskClientReg,
+	}
 
 	argparse.PersistentFlags().StringVarP(&Url, "url", "u", "", "server url")
 
@@ -125,6 +150,7 @@ func main() {
 	argparse.AddCommand(readCmd)
 	argparse.AddCommand(peekCmd)
 	argparse.AddCommand(listCmd)
+	argparse.AddCommand(askregCmd)
 
 	if err := argparse.Execute(); err != nil {
 		fmt.Println(err)

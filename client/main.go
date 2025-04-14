@@ -162,6 +162,14 @@ func fiber_service(cfg *CfgData, caseStatus map[string]*RunStatus) {
 		return c.SendString("the case is not supported\n")
 	})
 
+	app.Get("/ask_reg", func(c *fiber.Ctx) error {
+		if !register(cfg) {
+			Glogger.Fatal("Register failed!\n")
+			return c.SendString("register failed\n")
+		}
+		return c.SendString("registered!\n")
+	})
+
 	Glogger.Fatal(app.Listen(fmt.Sprintf(":%s", cfg.Init.ClientPort)))
 }
 
