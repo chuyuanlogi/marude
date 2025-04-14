@@ -81,6 +81,56 @@ func get_ip(net_type string) string {
 	return ""
 }
 
+func update(cfg *CfgData) bool {
+	Url := fmt.Sprintf("http://%s:%s/update", cfg.Server.Ip, cfg.Server.Port)
+	param := url.Values{}
+	param.Add("name", cfg.Init.Name)
+	param.Add("port", cfg.Init.ClientPort)
+	param.Add("ip", get_ip(cfg.Init.Nettype))
+	for _, adb_usb := range cfg.Init.AdbUsb {
+		param.Add("device", adb_usb)
+	}
+	for _, adb_ip := range cfg.Init.AdbIp {
+		param.Add("device_ip", adb_ip)
+	}
+
+	fullURL := Url + "?" + param.Encode()
+	//log.Printf("request url: %s\n", fullURL)
+
+	req, err := http.NewRequest("GET", fullURL, nil)
+	if err != nil {
+		Glogger.Fatalf("update failed: %v\n", err)
+		return false
+	}
+
+	client := &http.Client{
+		Timeout: 10 * time.Second,
+	}
+
+	res, err := client.Do(req)
+	if err != nil {
+		Glogger.Fatalf("update http request failed\n")
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		Glogger.Fatalf("server reject update\n")
+		return false
+	}
+
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		Glogger.Fatalf("read response body failed\n")
+		return false
+	}
+
+	if !(strings.HasPrefix(string(body), "Update Success")) {
+		Glogger.Fatalf("update failed!\n")
+		return false
+	}
+	return true
+}
+
 func register(cfg *CfgData) bool {
 	Url := fmt.Sprintf("http://%s:%s/register", cfg.Server.Ip, cfg.Server.Port)
 	param := url.Values{}
@@ -127,6 +177,9 @@ func register(cfg *CfgData) bool {
 	if !(strings.HasPrefix(string(body), "Register Success") || strings.HasPrefix(string(body), "Registered")) {
 		Glogger.Fatalf("register failed!\n")
 		return false
+	} else if strings.HasPrefix(string(body), "Registered") {
+		Glogger.Infoln("registered, update the client info")
+		update(cfg)
 	}
 
 	return true

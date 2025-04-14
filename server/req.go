@@ -31,7 +31,11 @@ func client_request(client *DeClient, req_client ReqClient) (res *http.Response,
 	httpclient := &http.Client{
 		/*Timeout: 100 * time.Second,*/
 	}
-	res, _ = httpclient.Do(req)
+	res, err = httpclient.Do(req)
+	if err != nil {
+		Glogger.Errorf("http request failed: %v\n", err)
+		return nil, err
+	}
 
 	client.RingBuf.Reset()
 

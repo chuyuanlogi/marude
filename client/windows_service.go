@@ -3,15 +3,13 @@
 package main
 
 import (
-	"sync"
-
 	"golang.org/x/sys/windows/svc"
 )
 
 type marude_service struct {
 	cfg        *CfgData
 	caseStatus map[string]*RunStatus
-	wait_group sync.WaitGroup
+	//wait_group sync.WaitGroup
 }
 
 func (m *marude_service) Execute(args []string, r <-chan svc.ChangeRequest, status chan<- svc.Status) (bool, uint32) {
@@ -29,10 +27,6 @@ func (m *marude_service) Execute(args []string, r <-chan svc.ChangeRequest, stat
 			case svc.Interrogate:
 				status <- c.CurrentStatus
 			case svc.Stop, svc.Shutdown:
-				if Gapp != nil {
-					Gapp.Shutdown()
-				}
-				m.wait_group.Done()
 				return true, 0
 			default:
 				Glogger.Infoln("Unexpected service control request #%d", c)
@@ -48,7 +42,9 @@ func Init_service(cfg *CfgData, caseStatus map[string]*RunStatus) {
 		Glogger.Fatal("detect service type failed: %v\n", err)
 	}
 	if !isService {
-		Glogger.Fatalln("this process cannot be a windows service")
+		Glogger.Infoln("this process cannot be a windows service, change to console process")
+		fiber_service(cfg, caseStatus)
+		return
 	}
 
 	ws := &marude_service{
