@@ -247,6 +247,25 @@ func main() {
 			//	method_params: []string{"resume", rc},
 			//})
 			reader := removeCloseMethod(client.RingBuf.ReadCloser())
+			dbBuf := make([]byte, 256)
+			_, err := client.RingBuf.Peek(dbBuf)
+			e := client.RingBuf.IsEmpty()
+
+			if err != nil || e == true {
+				if err == io.EOF || e == true {
+					_, err = client_request(client, ReqClient{
+						client_name:   v,
+						method_params: []string{"resume", rc},
+					})
+
+					if err != nil {
+						return c.Status(400).SendString(fmt.Sprintf("run %s -- %s failed, %v\n", v, rc, err))
+					}
+					reader = removeCloseMethod(client.RingBuf.ReadCloser())
+				} else {
+					return c.SendString(fmt.Sprintf("read error: %v\n", err))
+				}
+			}
 			return c.SendStream(reader)
 		} else if gr == "2" {
 			//res, err := client_request(client, ReqClient{

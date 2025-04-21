@@ -16,6 +16,7 @@ import (
 )
 
 const CONFIG_FILE string = "config.ini"
+const BUFSIZE = 32 * 1024
 
 type Status int
 
@@ -42,7 +43,7 @@ func initRunStatus(cfg *CfgData, caseStatus map[string]*RunStatus) bool {
 			status:  Idle,
 			cmdline: v.Exec,
 			c:       nil,
-			rb:      ringbuffer.New(256 * 1024).SetBlocking(true),
+			rb:      ringbuffer.New(BUFSIZE * 8).SetBlocking(true),
 		}
 	}
 	return true
@@ -56,7 +57,10 @@ func removeCloseMethod(rc io.ReadCloser) io.Reader {
 }
 
 func fiber_service(cfg *CfgData, caseStatus map[string]*RunStatus) {
-	app := fiber.New()
+	app := fiber.New(fiber.Config{
+		ReadBufferSize:  BUFSIZE,
+		WriteBufferSize: BUFSIZE,
+	})
 	Gapp = app
 
 	app.Get("/run/*", func(c *fiber.Ctx) error {
@@ -97,6 +101,7 @@ func fiber_service(cfg *CfgData, caseStatus map[string]*RunStatus) {
 
 	app.Get("/status/*", func(c *fiber.Ctx) error {
 		arg := c.Params("*1")
+		params := c.Queries()
 
 		s, ok := caseStatus[arg]
 		if ok {
@@ -105,6 +110,13 @@ func fiber_service(cfg *CfgData, caseStatus map[string]*RunStatus) {
 				s.cmdline = ""
 				s.c = nil
 			}
+
+			p, ok := params["rb"]
+			if ok && p == "1" {
+				str := fmt.Sprintf("case: %s ringbuffer: %d, %d, %d\n", arg, s.rb.Capacity(), s.rb.Length(), s.rb.Free())
+				return c.SendString(str)
+			}
+
 			str := fmt.Sprintf("status: %s\ncmdline: %s\n", []string{"Idle", "Running", "Finished"}[s.status], s.cmdline)
 			return c.SendString(str)
 		}
