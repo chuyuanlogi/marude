@@ -17,8 +17,10 @@ import (
 
 const CONFIG_FILE string = "config.ini"
 const BUFSIZE = 32 * 1024
+const RBSIZE = 256 * 1024
 
 type Status int
+type Nrbbuf struct{ *ringbuffer.RingBuffer }
 
 const (
 	Idle Status = iota
@@ -30,12 +32,64 @@ type RunStatus struct {
 	status  Status
 	cmdline string
 	c       *exec.Cmd
-	rb      *ringbuffer.RingBuffer
+	rb      *Nrbbuf
 }
 
 var Glogger *logrus.Logger
 var Version = "debug"
 var Gapp *fiber.App
+
+func (r *Nrbbuf) ReadFrom(rd io.Reader) (err error) {
+	read_buf := make([]byte, RBSIZE/16)
+	var zeroReads int = 0
+	for {
+		remining := r.RingBuffer.Free()
+		if remining < (RBSIZE / 3) {
+			drop := make([]byte, RBSIZE/2)
+			r.RingBuffer.Read(drop)
+			Glogger.Debugf("drop old data %d\n", RBSIZE/2)
+		}
+
+		nr, rerr := rd.Read(read_buf)
+		if rerr != nil && rerr != io.EOF {
+			return rerr
+		}
+		if nr == 0 && rerr == nil {
+			zeroReads++
+			if zeroReads >= 300 {
+				Glogger.Errorf("read 0 length over than 300 times\n")
+			}
+			continue
+		}
+		zeroReads = 0
+		r.RingBuffer.Write(read_buf[:nr])
+	}
+	return nil
+}
+
+func (r *Nrbbuf) ReadCloser() io.ReadCloser {
+	return r.RingBuffer.ReadCloser()
+}
+
+func (r *Nrbbuf) Capacity() int {
+	return r.RingBuffer.Capacity()
+}
+
+func (r *Nrbbuf) Length() int {
+	return r.RingBuffer.Length()
+}
+
+func (r *Nrbbuf) Free() int {
+	return r.RingBuffer.Free()
+}
+
+func (r *Nrbbuf) CloseWriter() {
+	r.RingBuffer.CloseWriter()
+}
+
+func (r *Nrbbuf) Reset() {
+	r.RingBuffer.Reset()
+}
 
 func initRunStatus(cfg *CfgData, caseStatus map[string]*RunStatus) bool {
 	for k, v := range cfg.Case {
@@ -43,7 +97,7 @@ func initRunStatus(cfg *CfgData, caseStatus map[string]*RunStatus) bool {
 			status:  Idle,
 			cmdline: v.Exec,
 			c:       nil,
-			rb:      ringbuffer.New(BUFSIZE * 8).SetBlocking(true),
+			rb:      &Nrbbuf{RingBuffer: ringbuffer.New(RBSIZE).SetBlocking(true)},
 		}
 	}
 	return true
@@ -187,6 +241,7 @@ func fiber_service(cfg *CfgData, caseStatus map[string]*RunStatus) {
 
 func main() {
 	var show_version bool = false
+	var ignore_reg bool = false
 	argparse := &cobra.Command{
 		Use:   "marude_client [--version]",
 		Short: "run long time stress test tool client",
@@ -203,6 +258,7 @@ func main() {
 		os.Exit(0)
 	})
 	argparse.Flags().BoolVar(&show_version, "version", false, "show current version")
+	argparse.Flags().BoolVar(&ignore_reg, "noregister", false, "ignore register to server")
 	if err := argparse.Execute(); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
@@ -227,11 +283,12 @@ func main() {
 
 	fmt.Println(fmt.Sprintf(":%s", cfg.Init.ClientPort))
 
-	if !register(cfg) {
-		Glogger.Fatal("Register failed!\n")
-		return
+	if ignore_reg == false {
+		if !register(cfg) {
+			Glogger.Fatal("Register failed!\n")
+			return
+		}
 	}
-
 	Init_service(cfg, caseStatus)
 
 }
