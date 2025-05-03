@@ -18,9 +18,13 @@ import (
 const CONFIG_FILE string = "config.ini"
 const BUFSIZE = 32 * 1024
 const RBSIZE = 256 * 1024
+const RBCKSIZE = 4 * 1024
 
 type Status int
-type Nrbbuf struct{ *ringbuffer.RingBuffer }
+type Nrbbuf struct {
+	*ringbuffer.RingBuffer
+	rbck *ringbuffer.RingBuffer
+}
 
 const (
 	Idle Status = iota
@@ -49,6 +53,11 @@ func (r *Nrbbuf) ReadFrom(rd io.Reader) (err error) {
 			r.RingBuffer.Read(drop)
 			Glogger.Debugf("drop old data %d\n", RBSIZE/2)
 		}
+		remining = r.rbck.Free()
+		if remining < (RBCKSIZE / 3) {
+			drop := make([]byte, RBCKSIZE/2)
+			r.rbck.Read(drop)
+		}
 
 		nr, rerr := rd.Read(read_buf)
 		if rerr != nil && rerr != io.EOF {
@@ -63,6 +72,7 @@ func (r *Nrbbuf) ReadFrom(rd io.Reader) (err error) {
 		}
 		zeroReads = 0
 		r.RingBuffer.Write(read_buf[:nr])
+		r.rbck.Write(read_buf[:nr])
 	}
 	return nil
 }
@@ -89,6 +99,13 @@ func (r *Nrbbuf) CloseWriter() {
 
 func (r *Nrbbuf) Reset() {
 	r.RingBuffer.Reset()
+	r.rbck.Reset()
+}
+
+func (r *Nrbbuf) CheckResult() []byte {
+	b := make([]byte, RBCKSIZE)
+	n, _ := r.rbck.Peek(b)
+	return b[:n]
 }
 
 func initRunStatus(cfg *CfgData, caseStatus map[string]*RunStatus) bool {
@@ -97,7 +114,10 @@ func initRunStatus(cfg *CfgData, caseStatus map[string]*RunStatus) bool {
 			status:  Idle,
 			cmdline: v.Exec,
 			c:       nil,
-			rb:      &Nrbbuf{RingBuffer: ringbuffer.New(RBSIZE).SetBlocking(true)},
+			rb: &Nrbbuf{
+				RingBuffer: ringbuffer.New(RBSIZE).SetBlocking(true),
+				rbck:       ringbuffer.New(RBCKSIZE),
+			},
 		}
 	}
 	return true

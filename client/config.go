@@ -1,21 +1,21 @@
 package main
 
 import (
-	"regexp"
-	"strconv"
-	"os"
-	"runtime"
 	"fmt"
+	"os"
+	"regexp"
+	"runtime"
+	"strconv"
 
 	"github.com/go-git/gcfg"
 )
 
 // config file format:
-// 
+//
 // [server]
 // ip=x.x.x.x
 // port=abcd
-// 
+//
 // [init]
 // adbusb=serial1
 // adbusb=serial2
@@ -24,37 +24,39 @@ import (
 // port=abcd
 // name=cccc
 // nettype=wifi
-// 
-// 
+//
+//
 // [case "a"]
 // exec="xxxxx"
 // adbdevice=serial or ip
 // uart=uart id
 // baud=xxxxx
 // single=yes/no
-// 
-// 
+// checkcmd="xxxx"
+//
+//
 
 type CfgCase struct {
-	Exec		string
-	AdbDevice	string
-	Uart		string
-	Baud		string
+	Exec        string
+	AdbDevice   string
+	Uart        string
+	Baud        string
 	UartLogName string
-	Single		string
+	Single      string
+	Checkcmd    string
 }
 
 type CfgData struct {
 	Server struct {
-		Ip			string
-		Port		string
+		Ip   string
+		Port string
 	}
 	Init struct {
-		AdbUsb		[]string
-		AdbIp		[]string
-		ClientPort	string
-		Name		string
-		Nettype		string
+		AdbUsb     []string
+		AdbIp      []string
+		ClientPort string
+		Name       string
+		Nettype    string
 	}
 	Case map[string]*CfgCase
 }
@@ -81,7 +83,7 @@ func validate_port(port string) bool {
 		return false
 	} else if i > 65535 {
 		Glogger.Fatalf("invalid network port")
-		return false	
+		return false
 	}
 
 	return true
@@ -150,7 +152,7 @@ func proc_conf_path(file string) string {
 		return conf_file
 	}
 
-	switch(runtime.GOOS) {
+	switch runtime.GOOS {
 	case "linux":
 		user_path := os.Getenv("HOME")
 		conf_file = fmt.Sprintf("%s/.config/marude/%s", user_path, file)
@@ -167,7 +169,7 @@ func proc_conf_path(file string) string {
 		return conf_file
 	}
 
-	switch(runtime.GOOS) {
+	switch runtime.GOOS {
 	case "linux":
 		conf_file = fmt.Sprintf("/etc/marude/%s", file)
 	case "windows":

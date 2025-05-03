@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"fmt"
 	"io"
 	"os"
@@ -9,6 +10,8 @@ import (
 	"runtime"
 	"slices"
 	"strconv"
+	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/shlex"
@@ -85,6 +88,182 @@ func run_macos_cmd(cmd ...string) (c *exec.Cmd, outs CmdOut, err error) {
 	return c, outs, nil
 }
 
+func check_win_cmd(result []byte, cmd ...string) string {
+	cmd = slices.Insert(cmd, 0, "/c")
+	c := exec.Command("cmd.exe", cmd...)
+	proc_stdin, _ := c.StdinPipe()
+	proc_out, _ := c.StdoutPipe()
+
+	Glogger.Println("check for the result: ", c.Args)
+
+	proc_stdin.Write(result)
+	proc_stdin.Close()
+	var out_buf bytes.Buffer
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		_, err := io.Copy(&out_buf, proc_out)
+		if err != nil {
+			Glogger.Errorf("sync stdout to buffer error: %v\n", err)
+			return
+		}
+	}()
+
+	err := c.Start()
+	if err != nil {
+		Glogger.Errorf("check result error: %v\n", err)
+		return ""
+	}
+
+	if err = c.Wait(); err != nil {
+		Glogger.Errorf("check result error: %v\n", err)
+		return ""
+	}
+
+	wg.Wait()
+
+	return out_buf.String()
+}
+
+func check_linux_cmd(result []byte, cmd ...string) string {
+	var c *exec.Cmd
+
+	if cmd[0][:6] == "python" {
+		c = exec.Command(cmd[0], cmd[1:]...)
+	} else if cmd[0][len(cmd[0])-3:] == ".sh" {
+		cmd = slices.Insert(cmd, 0, "--login")
+		c = exec.Command("/bin/bash", cmd...)
+	}
+
+	proc_stdin, _ := c.StdinPipe()
+	proc_out, _ := c.StdoutPipe()
+	var out_buf bytes.Buffer
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		_, err := io.Copy(&out_buf, proc_out)
+		if err != nil {
+			Glogger.Errorf("sync stdout to buffer error: %v\n", err)
+			return
+		}
+	}()
+
+	Glogger.Println("check for the result: ", c.Args)
+
+	proc_stdin.Write(result)
+	proc_stdin.Close()
+
+	err := c.Start()
+	if err != nil {
+		Glogger.Errorf("check result error1: %v\n", err)
+		return ""
+	}
+
+	if err = c.Wait(); err != nil {
+		Glogger.Errorf("check result error2: %v\n", err)
+		return ""
+	}
+	wg.Wait()
+
+	return out_buf.String()
+}
+
+func check_macos_cmd(result []byte, cmd ...string) string {
+	v := make([]interface{}, len(cmd))
+	for i, s := range cmd {
+		v[i] = s
+	}
+
+	arg := fmt.Sprintln(v)
+	c := exec.Command("zsh", "-c", arg)
+
+	proc_stdin, _ := c.StdinPipe()
+	proc_out, _ := c.StdoutPipe()
+	var out_buf bytes.Buffer
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		_, err := io.Copy(&out_buf, proc_out)
+		if err != nil {
+			Glogger.Errorf("sync stdout to buffer error: %v\n", err)
+			return
+		}
+	}()
+
+	Glogger.Println("check for the result: ", c.Args)
+
+	proc_stdin.Write(result)
+	proc_stdin.Close()
+
+	err := c.Start()
+	if err != nil {
+		Glogger.Errorf("check result error1: %v\n", err)
+		return ""
+	}
+
+	if err = c.Wait(); err != nil {
+		Glogger.Errorf("check result error2: %v\n", err)
+		return ""
+	}
+	wg.Wait()
+
+	return out_buf.String()
+}
+
+func set_osenv_from_check(result string) bool {
+	if len(result) == 0 {
+		return false
+	}
+
+	reader := strings.NewReader(result)
+	scanner := bufio.NewScanner(reader)
+	for scanner.Scan() {
+		l := scanner.Text()
+		i := strings.SplitN(l, "=", 2)
+		if len(i) == 2 {
+			k := strings.TrimSpace(i[0])
+			v := strings.TrimSpace(i[1])
+			fmt.Printf("set os envinmont:\n%s:%s\n", k, v)
+			if (k == "RETRY" || k == "MARUDE_RETRY") && v == "0" {
+				return false
+			}
+			os.Setenv(k, v)
+		}
+	}
+	return true
+}
+
+func check_result(cfg *CfgCase, proc *RunStatus) {
+	if len(cfg.Checkcmd) == 0 {
+		return
+	}
+
+	args, _ := shlex.Split(cfg.Checkcmd)
+	result := proc.rb.CheckResult()
+	fmt.Printf("result len: %d\n", len(result))
+
+	var r string = ""
+	switch runtime.GOOS {
+	case "linux":
+		r = check_linux_cmd(result, args...)
+
+	case "windows":
+		r = check_win_cmd(result, args...)
+
+	case "darwin":
+		r = check_macos_cmd(result, args...)
+	}
+	if len(r) != 0 {
+		if set_osenv_from_check(r) {
+			Glogger.Infof("check result is not finished, re-run the command: %s\n", cfg.Exec)
+			run_cmd(cfg, proc)
+		}
+	}
+}
+
 func run_cmd(cfg *CfgCase, proc *RunStatus) (*exec.Cmd, error) {
 	proc.rb.Reset()
 	args, err := shlex.Split(cfg.Exec)
@@ -121,6 +300,7 @@ func run_cmd(cfg *CfgCase, proc *RunStatus) (*exec.Cmd, error) {
 	go func() {
 		proc.rb.ReadFrom(outs.out)
 		proc.rb.CloseWriter()
+		check_result(cfg, proc)
 	}()
 
 	br, _ := strconv.Atoi(cfg.Baud)
