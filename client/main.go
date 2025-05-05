@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"strings"
 
 	"doraemon.pocket/common"
 
@@ -130,6 +131,17 @@ func removeCloseMethod(rc io.ReadCloser) io.Reader {
 	return readonly{rc}
 }
 
+func clear_marude_env() {
+	for _, v := range os.Environ() {
+		sz := strings.SplitN(v, "=", 2)
+		if len(sz) == 2 {
+			if strings.HasPrefix(sz[0], "MARUDE_") {
+				os.Unsetenv(sz[0])
+			}
+		}
+	}
+}
+
 func fiber_service(cfg *CfgData, caseStatus map[string]*RunStatus) {
 	app := fiber.New(fiber.Config{
 		ReadBufferSize:  BUFSIZE,
@@ -151,6 +163,7 @@ func fiber_service(cfg *CfgData, caseStatus map[string]*RunStatus) {
 					return c.SendString(fmt.Sprintf("the case %s is running now...\n", key))
 				}
 				// run exec command
+				clear_marude_env()
 				_, err := run_cmd(value, caseStatus[key])
 
 				if err != nil {
@@ -223,6 +236,25 @@ func fiber_service(cfg *CfgData, caseStatus map[string]*RunStatus) {
 				reader := removeCloseMethod(s.rb.ReadCloser())
 				return c.SendStream(reader)
 			}
+		}
+
+		return c.SendString("the case is not supported\n")
+	})
+
+	app.Get("/peek/*", func(c *fiber.Ctx) error {
+		c.Set("Content-Type", "application/octet-stream")
+		c.Set("Transfer-Encoding", "chunked")
+		c.Set("Cache-Control", "no-cache")
+		c.Set("Connection", "keep-alive")
+
+		arg := c.Params("*1")
+
+		s, ok := caseStatus[arg]
+		if ok {
+			leng := s.rb.rbck.Length()
+			data := make([]byte, leng)
+			s.rb.rbck.Peek(data)
+			return c.SendString(string(data))
 		}
 
 		return c.SendString("the case is not supported\n")

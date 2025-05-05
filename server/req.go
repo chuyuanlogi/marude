@@ -39,7 +39,7 @@ func client_request(client *DeClient, req_client ReqClient) (res *http.Response,
 
 	client.RingBuf.Reset()
 
-	if req_client.method_params[0] == "run" || req_client.method_params[0] == "resume" {
+	if req_client.method_params[0] == "resume" {
 		go func() {
 			defer res.Body.Close()
 			//fmt.Printf("getting res from http req: %s\n", Url)
@@ -47,6 +47,8 @@ func client_request(client *DeClient, req_client ReqClient) (res *http.Response,
 			//fmt.Printf("finished http req: %s\n", Url)
 			client.RingBuf.CloseWriter()
 		}()
+	} else if req_client.method_params[0] == "run" {
+		res.Body.Close()
 	} else {
 		defer res.Body.Close()
 		b, _ := io.ReadAll(res.Body)

@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"fmt"
 	"io"
 	"log"
@@ -242,41 +241,29 @@ func main() {
 		}
 
 		if gr == "1" {
-			//res, err := client_request(client, ReqClient{
-			//	client_name:   v,
-			//	method_params: []string{"resume", rc},
-			//})
-			reader := removeCloseMethod(client.RingBuf.ReadCloser())
-			dbBuf := make([]byte, 256)
-			_, err := client.RingBuf.Peek(dbBuf)
-			e := client.RingBuf.IsEmpty()
+			_, err = client_request(client, ReqClient{
+				client_name:   v,
+				method_params: []string{"resume", rc},
+			})
 
-			if err != nil || e == true {
-				if err == io.EOF || e == true {
-					_, err = client_request(client, ReqClient{
-						client_name:   v,
-						method_params: []string{"resume", rc},
-					})
-
-					if err != nil {
-						return c.Status(400).SendString(fmt.Sprintf("run %s -- %s failed, %v\n", v, rc, err))
-					}
-					reader = removeCloseMethod(client.RingBuf.ReadCloser())
-				} else {
-					return c.SendString(fmt.Sprintf("read error: %v\n", err))
-				}
+			if err != nil {
+				return c.Status(400).SendString(fmt.Sprintf("run %s -- %s failed, %v\n", v, rc, err))
 			}
+			reader := removeCloseMethod(client.RingBuf.ReadCloser())
 			return c.SendStream(reader)
 		} else if gr == "2" {
-			//res, err := client_request(client, ReqClient{
-			//	client_name:   v,
-			//	method_params: []string{"resume", rc},
-			//})
+			_, err := client_request(client, ReqClient{
+				client_name:   v,
+				method_params: []string{"peek", rc},
+			})
+			if err != nil {
+				return c.Status(400).SendString(fmt.Sprintf("peek %s -- %s failed, %v\n", v, rc, err))
+			}
+
 			leng := client.RingBuf.Length()
 			data := make([]byte, leng)
 			client.RingBuf.Peek(data)
-			nreader := bytes.NewBuffer(data)
-			return c.SendStream(nreader)
+			return c.SendString(string(data))
 		} else {
 			_, err := client_request(client, ReqClient{
 				client_name:   v,

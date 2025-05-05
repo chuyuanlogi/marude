@@ -112,12 +112,12 @@ func check_win_cmd(result []byte, cmd ...string) string {
 
 	err := c.Start()
 	if err != nil {
-		Glogger.Errorf("check result error: %v\n", err)
+		Glogger.Errorf("check result error1: %v\n", err)
 		return ""
 	}
 
 	if err = c.Wait(); err != nil {
-		Glogger.Errorf("check result error: %v\n", err)
+		Glogger.Errorf("check result error2: %v\n", err)
 		return ""
 	}
 
@@ -226,9 +226,11 @@ func set_osenv_from_check(result string) bool {
 		if len(i) == 2 {
 			k := strings.TrimSpace(i[0])
 			v := strings.TrimSpace(i[1])
-			fmt.Printf("set os envinmont:\n%s:%s\n", k, v)
-			if (k == "RETRY" || k == "MARUDE_RETRY") && v == "0" {
-				return false
+			fmt.Printf("set os envinmont:--%s:%s\n", k, v)
+			if k == "RETRY" || k == "MARUDE_RETRY" {
+				if v == "0" {
+					return false
+				}
 			}
 			os.Setenv(k, v)
 		}
