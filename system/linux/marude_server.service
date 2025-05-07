@@ -4,6 +4,7 @@ After=network.target
 
 [Service]
 Type=simple
+WorkingDirectory=/usr/local/marude
 ExecStart=/usr/local/marude/marude_server
 ExecStop=/bin/kill -9 $MAINPID
 
