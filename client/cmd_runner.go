@@ -300,7 +300,8 @@ func run_cmd(cfg *CfgCase, proc *RunStatus) (*exec.Cmd, error) {
 	Glogger.Infof("run command: %s\n", cfg.Exec)
 
 	go func() {
-		proc.rb.ReadFrom(outs.out)
+		reader := io.MultiReader(outs.out, outs.err)
+		proc.rb.ReadFrom(reader)
 		proc.rb.CloseWriter()
 		check_result(cfg, proc)
 	}()
