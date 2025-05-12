@@ -164,6 +164,7 @@ func fiber_service(cfg *CfgData, caseStatus map[string]*RunStatus) {
 				}
 				// run exec command
 				clear_marude_env()
+				caseStatus[key].rb.Reset()
 				_, err := run_cmd(value, caseStatus[key])
 
 				if err != nil {

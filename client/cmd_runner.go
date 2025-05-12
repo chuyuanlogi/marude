@@ -240,12 +240,13 @@ func set_osenv_from_check(result string) bool {
 
 func check_result(cfg *CfgCase, proc *RunStatus) {
 	if len(cfg.Checkcmd) == 0 {
+		Glogger.Infof("ignore check result process\n")
 		return
 	}
 
 	args, _ := shlex.Split(cfg.Checkcmd)
 	result := proc.rb.CheckResult()
-	fmt.Printf("result len: %d\n", len(result))
+	Glogger.Infof("case output length: %d\n", len(result))
 
 	var r string = ""
 	switch runtime.GOOS {
@@ -258,6 +259,7 @@ func check_result(cfg *CfgCase, proc *RunStatus) {
 	case "darwin":
 		r = check_macos_cmd(result, args...)
 	}
+
 	if len(r) != 0 {
 		if set_osenv_from_check(r) {
 			Glogger.Infof("check result is not finished, re-run the command: %s\n", cfg.Exec)
@@ -267,7 +269,7 @@ func check_result(cfg *CfgCase, proc *RunStatus) {
 }
 
 func run_cmd(cfg *CfgCase, proc *RunStatus) (*exec.Cmd, error) {
-	proc.rb.Reset()
+	//proc.rb.Reset()
 	args, err := shlex.Split(cfg.Exec)
 	if err != nil {
 		Glogger.Fatalf("Failed to split command: %v", err)
@@ -303,7 +305,6 @@ func run_cmd(cfg *CfgCase, proc *RunStatus) (*exec.Cmd, error) {
 		reader := io.MultiReader(outs.out, outs.err)
 		proc.rb.ReadFrom(reader)
 		proc.rb.CloseWriter()
-		check_result(cfg, proc)
 	}()
 
 	br, _ := strconv.Atoi(cfg.Baud)
@@ -360,6 +361,7 @@ func run_cmd(cfg *CfgCase, proc *RunStatus) (*exec.Cmd, error) {
 			uart.Close()
 		}
 		Glogger.Infof("PID: %d has been finished\n", c.Process.Pid)
+		check_result(cfg, proc)
 	}()
 
 	proc.status = Running
