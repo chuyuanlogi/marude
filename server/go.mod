@@ -6,6 +6,7 @@ require (
 	doraemon.pocket v0.0.0-00010101000000-000000000000
 	github.com/go-git/gcfg v1.5.0
 	github.com/gofiber/fiber/v2 v2.52.6
+	github.com/gofiber/template/html/v2 v2.1.3
 	github.com/sirupsen/logrus v1.9.3
 	github.com/smallnest/ringbuffer v0.0.0-20250317021400-0da97b586904
 	github.com/spf13/cobra v1.9.1
@@ -13,6 +14,8 @@ require (
 
 require (
 	github.com/andybalholm/brotli v1.1.0 // indirect
+	github.com/gofiber/template v1.8.3 // indirect
+	github.com/gofiber/utils v1.1.0 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/klauspost/compress v1.17.9 // indirect

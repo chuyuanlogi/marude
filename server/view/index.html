@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>MARUDE info</title>
+	<style>
+		#text-content {
+			border: 1px solid #ccc;
+			padding: 15px;
+			margin-top: 20px;
+			background-color: #f9f9f9;
+			white-space: pre-wrap;
+			word-wrap: break-word;
+		}
+		table {
+			width: 80%;
+			border-collapse: collapse;
+			margin: 30px auto;
+			box-shadow: 0 0 10px rgba(0,0,0,0.15);
+			background-color: #fff;
+		}
+
+		th, td {
+			border: 1px solid #ddd;
+			padding: 12px 15px;
+			text-align: left;
+		}
+
+		th {
+			background-color: #4CAF50;
+			color: white;
+			font-weight: bold;
+			text-transform: uppercase;
+		}
+
+		td {
+			color: #444;
+			vertical-align: top;
+			font-size: 1.1em;
+			line-height: 1.8;
+		}
+
+		tr:nth-child(even) {
+			background-color: #f2f2f2;
+		}
+
+		tr:hover {
+			background-color: #ddd;
+			cursor: pointer;
+		}
+
+		caption {
+			font-size: 1.2em;
+			margin-bottom: 10px;
+			font-weight: bold;
+		}
+	</style>
+</head>
+<body>
+	<script>
+		document.addEventListener('DOMContentLoaded', () => {
+			const logLinks = document.querySelectorAll('.pure-text-res');
+
+			logLinks.forEach(link => {
+				link.addEventListener('click', function(event) {
+					event.preventDefault();
+
+					const reslink = this.dataset.resLink; 
+
+					if (!reslink) {
+						console.error("fatal: data-res-link does not exist.");
+						return;
+					}
+
+					// /display?link=https%3A%2F%2Fjsonplaceholder.typicode.com%2Fposts%2F1
+					const newWindowUrl = this.href + "?link=" + encodeURIComponent(reslink);
+
+					const newWindow = window.open(newWindowUrl, '_blank', 'width=800,height=600,scrollbars=yes,resizable=yes');
+
+					if (!newWindow || newWindow.closed || typeof newWindow.closed=='undefined') { 
+						alert('please allow popup windows on your browser');
+					}
+				});
+			});
+		});
+	</script>
+	<h2>Test service list</h2>
+	<table>
+		<thead>
+			<tr>
+				<th>Machine</th>
+				<th>Test Item</th>
+				<th>Progress Info</th>
+			</tr>
+		</thead>
+		<tbody>
+			{{ range .Machines }}
+			<tr>
+				<td>{{ unescape .Client_info }}</td>
+				<td>{{ unescape .Client_case }}</td>
+				<td>{{ unescape .Client_prog }}</td>
+			</tr>
+			{{ end }}
+		</tbody>
+	</table>
+</body>
+</html>

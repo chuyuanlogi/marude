@@ -36,6 +36,7 @@ else()
 endif()
 
 set(CONF_SAMPLE "${CMAKE_CURRENT_LIST_DIR}/system/conf")
+set(HTML_VIEW "${CMAKE_CURRENT_LIST_DIR}/server/view")
 
 function(build_go NAME SRC_PATH EXTEND_FLAG)
 	add_custom_command(
@@ -46,6 +47,7 @@ function(build_go NAME SRC_PATH EXTEND_FLAG)
 		WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}
 		COMMAND ${CMAKE_COMMAND} -E copy_directory ${PROC_FILENAME} "${CMAKE_CURRENT_BINARY_DIR}/output"
 		COMMAND ${CMAKE_COMMAND} -E copy_directory ${CONF_SAMPLE} "${CMAKE_CURRENT_BINARY_DIR}/output/conf"
+		COMMAND ${CMAKE_COMMAND} -E copy_directory ${HTML_VIEW} "${CMAKE_CURRENT_BINARY_DIR}/output/view"
 		COMMENT "Building go project ... ${NAME}"
 	)
 

@@ -2,15 +2,21 @@ package main
 
 import (
 	"fmt"
+	"html/template"
 	"io"
 	"log"
+	"net"
+	"net/http"
+	"net/url"
 	"os"
 	"regexp"
+	"runtime"
 	"strings"
 
 	"doraemon.pocket/common"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/template/html/v2"
 	"github.com/sirupsen/logrus"
 	"github.com/smallnest/ringbuffer"
 	"github.com/spf13/cobra"
@@ -91,6 +97,80 @@ func queries(c *fiber.Ctx) (name string, client *DeClient, err error) {
 	return name, client, nil
 }
 
+func prefix_detect(name string) bool {
+	prefix := []string{}
+	switch runtime.GOOS {
+	case "linux":
+		prefix = []string{"en", "eth"}
+	case "windows":
+		prefix = []string{"ethernet"}
+	case "darwin":
+		prefix = []string{"en0"}
+	}
+
+	for _, pfx := range prefix {
+		if strings.HasPrefix(name, pfx) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func get_ip() string {
+	interf, err := net.Interfaces()
+	if err != nil {
+		Glogger.Fatalf("failed to get network interfaces: %v\n", err)
+		return ""
+	}
+
+	for _, iface := range interf {
+		if iface.Flags&net.FlagUp == 0 {
+			continue
+		}
+
+		addrs, err := iface.Addrs()
+		if err != nil {
+			continue
+		}
+
+		ifname := strings.ToLower(iface.Name)
+		for _, addr := range addrs {
+			ipNet, ok := addr.(*net.IPNet)
+			if !ok {
+				continue
+			}
+
+			ip := ipNet.IP
+			if ip.IsLoopback() || ip.To4() == nil || ip.String() == "127.0.0.1" {
+				continue
+			}
+
+			if prefix_detect(ifname) {
+				return ip.String()
+			}
+		}
+	}
+
+	return ""
+}
+
+type Machine struct {
+	Client_info string
+	Client_case string
+	Client_prog string
+}
+
+const const_display_temp = "<a href=\"/display\" target=\"_blank\" class=\"pure-text-res\" " +
+	"data-res-link=\"%s\">%s</a><br>"
+const const_case = const_display_temp + "%s - %s"
+
+const const_caselink = "http://%s:%s/run_case?name=%s&case=%s&fetch=0"
+
+const const_status = const_display_temp
+
+const const_statuslink = "http://%s:%s/run_case?name=%s&case=%s&fetch=2"
+
 func main() {
 	var show_version bool = false
 	argparse := &cobra.Command{
@@ -130,7 +210,103 @@ func main() {
 
 	clients := make(map[string]*DeClient)
 
-	app := fiber.New()
+	engine := html.New("./view", ".html")
+	engine.AddFunc(
+		"unescape", func(s string) template.HTML {
+			return template.HTML(s)
+		},
+	)
+
+	app := fiber.New(fiber.Config{
+		Views: engine,
+	})
+
+	app.Get("/", func(c *fiber.Ctx) error {
+		machines := []Machine{}
+		uni_id := 1
+
+		for k, v := range clients {
+			client_request(v, ReqClient{
+				client_name:   k,
+				method_params: []string{"list"},
+			})
+
+			buf := make([]byte, 256)
+			leng, _ := v.RingBuf.Read(buf)
+			res_str := strings.ReplaceAll(string(buf[:leng]), "\r\n", "\n")
+			res_strlist := strings.Split(res_str, "\n")
+
+			for i, d := range v.Dev {
+				casename := res_strlist[i][6:]
+
+				m := Machine{}
+				m.Client_info = fmt.Sprintf("%s<br>%s:%s", k, v.Ip, v.Port)
+				caselink := fmt.Sprintf(const_caselink, get_ip(), cfg.Service.Port, k, casename)
+				m.Client_case =
+					fmt.Sprintf(const_case,
+						caselink, casename,
+						d.Serial, d.Ip)
+
+				client_request(v, ReqClient{
+					client_name:   k,
+					method_params: []string{"status", casename},
+				})
+
+				leng, _ = v.RingBuf.Read(buf)
+				res_info := strings.ReplaceAll(string(buf[:leng]), "\r\n", "\n")
+				res_infolist := strings.Split(res_info, "\n")
+				if res_infolist[0][8:] == "Idle" {
+					m.Client_prog = "Idle"
+				} else {
+					statuslink := fmt.Sprintf(const_statuslink, get_ip(), cfg.Service.Port, k, casename)
+					m.Client_prog =
+						fmt.Sprintf(const_status,
+							statuslink, "status")
+				}
+				uni_id++
+				machines = append(machines, m)
+			}
+		}
+
+		data := fiber.Map{
+			"Machines": machines,
+		}
+		return c.Render("index", data)
+	})
+
+	app.Get("/display", func(c *fiber.Ctx) error {
+		return c.Render("display", nil)
+	})
+
+	app.Get("/proxy", func(c *fiber.Ctx) error {
+		params := c.Queries()
+		link := params["link"]
+		if len(link) == 0 {
+			return c.Status(fiber.StatusBadRequest).SendString("link infomation is lost")
+		}
+
+		parsedlink, err := url.Parse(link)
+		if err != nil || (parsedlink.Scheme != "http") {
+			return c.Status(fiber.StatusBadRequest).SendString("invalid link informat")
+		}
+
+		res, err := http.Get(link)
+		if err != nil {
+			Glogger.Errorf("get client %s status failed %v\n", link, err)
+			return c.Status(fiber.StatusInternalServerError).SendString("failed to get status")
+		}
+
+		defer res.Body.Close()
+		if res.StatusCode != http.StatusOK {
+			Glogger.Errorf("get %s status code %v\n", link, err)
+			return c.Status(res.StatusCode).SendString("failed to get status")
+		}
+
+		c.Set(fiber.HeaderContentType, fiber.MIMETextPlain)
+		buf := make([]byte, 10204)
+		leng, _ := res.Body.Read(buf)
+		return c.SendString(string(buf[:leng]))
+	})
 
 	app.Get("/register", func(c *fiber.Ctx) error {
 		name, client, err := queries(c)

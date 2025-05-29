@@ -68,7 +68,7 @@ func get_ip(net_type string) string {
 			}
 
 			ip := ipNet.IP
-			if ip.IsLoopback() || ip.To4() == nil {
+			if ip.IsLoopback() || ip.To4() == nil || ip.String() == "127.0.0.1" {
 				continue
 			}
 

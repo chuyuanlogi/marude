@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>MARUDE client info</title>
+	<style>
+		body { 
+			font-family: Arial, sans-serif;
+			margin: 20px; 
+			background-color: #f8f8f8;
+			color: #333;
+		}
+		h1 {
+			color: #2c3e50;
+			text-align: center;
+			margin-bottom: 20px;
+		}
+		#res-content { 
+			border: 1px solid #ddd; 
+			padding: 15px; 
+			background-color: #fcfcfc; 
+			min-height: 100px;
+			overflow: auto;
+			white-space: pre-wrap;
+			word-wrap: break-word;
+			max-height: 80vh;
+			border-radius: 5px;
+			box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+		}
+		.loading-message {
+			color: #888;
+			font-style: italic;
+			text-align: center;
+			margin-bottom: 10px;
+		}
+	</style>
+</head>
+<body>
+
+	<p class="loading-message" id="loading-status">loading...</p>
+	<pre id="log-content"></pre>
+
+	<script>
+		document.addEventListener('DOMContentLoaded', async () => {
+			const logContentDisplay = document.getElementById('log-content');
+			const loadingStatus = document.getElementById('loading-status');
+
+			const urlParams = new URLSearchParams(window.location.search);
+			const filePath = urlParams.get('link');
+
+			if (!filePath) {
+				logContentDisplay.textContent = 'error: no link';
+				loadingStatus.textContent = 'fatal error';
+				console.error('Error: Log file path not specified in URL.');
+				return;
+			}
+
+			loadingStatus.textContent = `loading ${filePath}...`;
+            const proxyUrl = `/proxy?link=` + encodeURIComponent(filePath);
+
+			try {
+				const response = await fetch(proxyUrl);
+				if (!response.ok) {
+					throw new Error(`HTTP error: ${response.status}`);
+				}
+				const text = await response.text();
+				logContentDisplay.textContent = text;
+				loadingStatus.textContent = 'finished';
+
+			} catch (error) {
+				console.error('loading error: ', error);
+				logContentDisplay.textContent = `failed to get status: ${error.message}`;
+				loadingStatus.textContent = 'load failed';
+			}
+		});
+	</script>
+</body>
+</html>	
