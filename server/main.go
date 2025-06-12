@@ -169,7 +169,7 @@ const const_caselink = "http://%s:%s/run_case?name=%s&case=%s&fetch=0"
 
 const const_status = const_display_temp
 
-const const_statuslink = "http://%s:%s/run_case?name=%s&case=%s&fetch=2"
+const const_statuslink = "http://%s:%s/run_case?name=%s&case=%s&fetch=3"
 
 func main() {
 	var show_version bool = false
@@ -261,7 +261,7 @@ func main() {
 					statuslink := fmt.Sprintf(const_statuslink, get_ip(), cfg.Service.Port, k, casename)
 					m.Client_prog =
 						fmt.Sprintf(const_status,
-							statuslink, "status")
+							statuslink, res_infolist[0][8:])
 				}
 				uni_id++
 				machines = append(machines, m)
@@ -434,6 +434,19 @@ func main() {
 			})
 			if err != nil {
 				return c.Status(400).SendString(fmt.Sprintf("peek %s -- %s failed, %v\n", v, rc, err))
+			}
+
+			leng := client.RingBuf.Length()
+			data := make([]byte, leng)
+			client.RingBuf.Peek(data)
+			return c.SendString(string(data))
+		} else if gr == "3" {
+			_, err := client_request(client, ReqClient{
+				client_name:   v,
+				method_params: []string{"peeek", rc},
+			})
+			if err != nil {
+				return c.Status(400).SendString(fmt.Sprintf("peek long %s -- %s failed, %v\n", v, rc, err))
 			}
 
 			leng := client.RingBuf.Length()

@@ -62,7 +62,11 @@ func (r *Nrbbuf) ReadFrom(rd io.Reader) (err error) {
 
 		nr, rerr := rd.Read(read_buf)
 		if rerr != nil && rerr != io.EOF {
+			Glogger.Infof("read io.reader failed: %v\n", rerr)
 			return rerr
+		} else if rerr == io.EOF {
+			Glogger.Infof("io.reader EOF, ready for closing write ringbuffer\n")
+			return nil
 		}
 		if nr == 0 && rerr == nil {
 			zeroReads++
@@ -255,6 +259,25 @@ func fiber_service(cfg *CfgData, caseStatus map[string]*RunStatus) {
 			leng := s.rb.rbck.Length()
 			data := make([]byte, leng)
 			s.rb.rbck.Peek(data)
+			return c.SendString(string(data))
+		}
+
+		return c.SendString("the case is not supported\n")
+	})
+
+	app.Get("/peeek/*", func(c *fiber.Ctx) error {
+		c.Set("Content-Type", "application/octet-stream")
+		c.Set("Transfer-Encoding", "chunked")
+		c.Set("Cache-Control", "no-cache")
+		c.Set("Connection", "keep-alive")
+
+		arg := c.Params("*1")
+
+		s, ok := caseStatus[arg]
+		if ok {
+			leng := s.rb.RingBuffer.Length()
+			data := make([]byte, leng)
+			s.rb.RingBuffer.Peek(data)
 			return c.SendString(string(data))
 		}
 

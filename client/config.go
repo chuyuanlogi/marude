@@ -114,7 +114,7 @@ func validate_config() bool {
 		}
 	}
 
-	for _, c := range g_cfg.Case {
+	for k, c := range g_cfg.Case {
 		if len(c.Single) == 0 {
 			c.Single = "yes"
 		} else if c.Single != "yes" {
@@ -128,6 +128,7 @@ func validate_config() bool {
 		if len(c.UartLogName) <= 3 {
 			c.UartLogName = "uart-%s"
 		}
+		Glogger.Infof("case %s uart log name: %s\n", k, c.UartLogName)
 	}
 
 	return true

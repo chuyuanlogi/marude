@@ -226,7 +226,7 @@ func set_osenv_from_check(result string) bool {
 		if len(i) == 2 {
 			k := strings.TrimSpace(i[0])
 			v := strings.TrimSpace(i[1])
-			fmt.Printf("set os envinmont:--%s:%s\n", k, v)
+			Glogger.Infof("set os envinmont:--%s:%s\n", k, v)
 			if k == "RETRY" || k == "MARUDE_RETRY" {
 				if v == "0" {
 					return false
@@ -238,10 +238,19 @@ func set_osenv_from_check(result string) bool {
 	return true
 }
 
-func check_result(cfg *CfgCase, proc *RunStatus) {
+func check_result(cfg *CfgCase, proc *RunStatus) int {
 	if len(cfg.Checkcmd) == 0 {
 		Glogger.Infof("ignore check result process\n")
-		return
+		return 0
+	}
+	cr_count := os.Getenv("MARUDE_CR_COUNT")
+	cr_status := os.Getenv("MARUDE_CR_STATUS")
+	fmt.Printf("cr status: %s\n", cr_status)
+	if cr_status == "finish" {
+		Glogger.Infof("cmd runner status is finised\n")
+		return 0
+	} else if cr_status == "retry" {
+		Glogger.Infof("cmd runner status is retry: %s\n", cr_count)
 	}
 
 	args, _ := shlex.Split(cfg.Checkcmd)
@@ -264,8 +273,10 @@ func check_result(cfg *CfgCase, proc *RunStatus) {
 		if set_osenv_from_check(r) {
 			Glogger.Infof("check result is not finished, re-run the command: %s\n", cfg.Exec)
 			run_cmd(cfg, proc)
+			return 1
 		}
 	}
+	return 0
 }
 
 func run_cmd(cfg *CfgCase, proc *RunStatus) (*exec.Cmd, error) {
@@ -304,7 +315,7 @@ func run_cmd(cfg *CfgCase, proc *RunStatus) (*exec.Cmd, error) {
 	go func() {
 		reader := io.MultiReader(outs.out, outs.err)
 		proc.rb.ReadFrom(reader)
-		proc.rb.CloseWriter()
+		//proc.rb.CloseWriter()
 	}()
 
 	br, _ := strconv.Atoi(cfg.Baud)
@@ -353,7 +364,7 @@ func run_cmd(cfg *CfgCase, proc *RunStatus) (*exec.Cmd, error) {
 	go func() {
 		err := c.Wait()
 		if err != nil {
-			fmt.Println(err)
+			Glogger.Errorf("wait PID: %d failed: %v\n", c.Process.Pid, err)
 		}
 		proc.status = Finished
 		proc.c = nil
@@ -361,7 +372,19 @@ func run_cmd(cfg *CfgCase, proc *RunStatus) (*exec.Cmd, error) {
 			uart.Close()
 		}
 		Glogger.Infof("PID: %d has been finished\n", c.Process.Pid)
-		check_result(cfg, proc)
+		if 0 == check_result(cfg, proc) {
+			os.Setenv("MARUDE_CR_STATUS", "finish")
+			proc.rb.RingBuffer.CloseWriter()
+		} else {
+			c := os.Getenv("MARUDE_CR_COUNT")
+			if len(c) == 0 {
+				c = "0"
+			}
+			count, _ := strconv.Atoi(c)
+			c = fmt.Sprintf("%d", count+1)
+			os.Setenv("MARUDE_CR_COUNT", c)
+			os.Setenv("MARUDE_CR_STATUS", "retry")
+		}
 	}()
 
 	proc.status = Running
