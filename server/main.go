@@ -303,9 +303,16 @@ func main() {
 		}
 
 		c.Set(fiber.HeaderContentType, fiber.MIMETextPlain)
-		buf := make([]byte, 10204)
-		leng, _ := res.Body.Read(buf)
-		return c.SendString(string(buf[:leng]))
+		maxleng := int(res.ContentLength)
+		buf := make([]byte, maxleng)
+		if maxleng > 0 {
+			_, err := io.ReadFull(res.Body, buf)
+			if err != nil && err != io.EOF {
+				Glogger.Errorf("read http res body failed: %v\n", err)
+				return c.Status(res.StatusCode).SendString("failed to get status")
+			}
+		}
+		return c.SendString(string(buf[:maxleng]))
 	})
 
 	app.Get("/register", func(c *fiber.Ctx) error {
