@@ -69,6 +69,19 @@ func subCmdPeek(cmd *cobra.Command, args []string) {
 	}
 }
 
+func subCmdPeeek(cmd *cobra.Command, args []string) {
+        checkUrl()
+        param := url.Values{}
+        param.Add("name", args[0])
+        param.Add("case", args[1])
+        param.Add("fetch", "3")
+        requrl := fmt.Sprintf("%s/run_case", Url)
+        if !HttpGet(requrl, param) {
+                log.Printf("command failed\n")
+        }
+}
+
+
 func subCmdList(cmd *cobra.Command, args []string) {
 	checkUrl()
 	requrl := fmt.Sprintf("%s/list", Url)
@@ -132,6 +145,12 @@ func main() {
 		Run:   subCmdPeek,
 		Args:  cobra.ExactArgs(2),
 	}
+        peeekCmd := &cobra.Command{
+                Use:   "peeek",
+                Short: "read the stdout from the specific stress test and won't clean the buffer)",
+                Run:   subCmdPeeek,
+                Args:  cobra.ExactArgs(2),
+        }
 	listCmd := &cobra.Command{
 		Use:   "list",
 		Short: "list all machine and cases",
@@ -149,6 +168,7 @@ func main() {
 	argparse.AddCommand(runCmd)
 	argparse.AddCommand(readCmd)
 	argparse.AddCommand(peekCmd)
+	argparse.AddCommand(peeekCmd)
 	argparse.AddCommand(listCmd)
 	argparse.AddCommand(askregCmd)
 
