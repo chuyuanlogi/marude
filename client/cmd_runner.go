@@ -340,7 +340,7 @@ func run_cmd(cfg *CfgCase, proc *RunStatus) (*exec.Cmd, error) {
 			return
 		}
 
-		fname := fmt.Sprintf(cfg.UartLogName, time.Now().Format("2006-01-02 15:04:05"))
+		fname := fmt.Sprintf(cfg.UartLogName, time.Now().Format("2006_01_02_150405"))
 		f, err := os.OpenFile(fname, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
 		if err != nil {
 			Glogger.Errorf("PID: %d create uart log failed: %v\n", c.Process.Pid, err)
@@ -375,6 +375,11 @@ func run_cmd(cfg *CfgCase, proc *RunStatus) (*exec.Cmd, error) {
 		if 0 == check_result(cfg, proc) {
 			os.Setenv("MARUDE_CR_STATUS", "finish")
 			proc.rb.RingBuffer.CloseWriter()
+			if proc.done_chan != nil {
+				Glogger.Infof("cmd finished, send signal to done channel\n")
+				proc.done_chan <- struct{}{}
+				Glogger.Infof("done signal had been received\n")
+			}
 		} else {
 			c := os.Getenv("MARUDE_CR_COUNT")
 			if len(c) == 0 {

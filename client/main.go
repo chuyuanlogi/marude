@@ -31,13 +31,15 @@ const (
 	Idle Status = iota
 	Running
 	Finished
+	Queued
 )
 
 type RunStatus struct {
-	status  Status
-	cmdline string
-	c       *exec.Cmd
-	rb      *Nrbbuf
+	status    Status
+	cmdline   string
+	c         *exec.Cmd
+	rb        *Nrbbuf
+	done_chan chan struct{}
 }
 
 var Glogger *logrus.Logger
@@ -146,6 +148,41 @@ func clear_marude_env() {
 	}
 }
 
+type QCmd struct {
+	caseInfo  *CfgCase
+	runStatus *RunStatus
+}
+
+var queue_cmd = make(chan QCmd, 30)
+
+func cmd_queue_handler(q_cmd <-chan QCmd) {
+	for cmd := range q_cmd {
+		cmd.runStatus.done_chan = make(chan struct{})
+		clear_marude_env()
+		cmd.runStatus.rb.Reset()
+		Glogger.Infof("run command %s from queue\n", cmd.caseInfo.Exec)
+		_, err := run_cmd(cmd.caseInfo, cmd.runStatus)
+		if err != nil {
+			Glogger.Infof("run command %s in queue failed\n", cmd.caseInfo.Exec)
+			continue
+		}
+		if cmd.runStatus.done_chan != nil {
+			Glogger.Infof("wait for cmd finish in queue\n")
+			<-cmd.runStatus.done_chan
+			Glogger.Infof("ok, ready to run next cmd in queue\n")
+		}
+	}
+}
+
+func IsAnyCmdRun(cfg *CfgData, caseStatus map[string]*RunStatus) bool {
+	for k, _ := range cfg.Case {
+		if caseStatus[k].status == Queued || caseStatus[k].status == Running {
+			return true
+		}
+	}
+	return false
+}
+
 func fiber_service(cfg *CfgData, caseStatus map[string]*RunStatus) {
 	app := fiber.New(fiber.Config{
 		ReadBufferSize:  BUFSIZE,
@@ -162,13 +199,21 @@ func fiber_service(cfg *CfgData, caseStatus map[string]*RunStatus) {
 		arg := c.Params("*1")
 		for key, value := range cfg.Case {
 			if arg == key {
-				if value.Single == "yes" && caseStatus[key].status == Running {
+				if value.Single == "yes" && (caseStatus[key].status == Running || caseStatus[key].status == Queued) {
 					Glogger.Infof("the case %s still running", key)
 					return c.SendString(fmt.Sprintf("the case %s is running now...\n", key))
+				} else if value.Single == "yes" {
+					if IsAnyCmdRun(cfg, caseStatus) {
+						Glogger.Infof("enqueue the case %s\n", key)
+						caseStatus[key].status = Queued
+						queue_cmd <- QCmd{value, caseStatus[key]}
+						return c.SendString(fmt.Sprintf("the case %s enqueued\n", key))
+					}
 				}
 				// run exec command
 				clear_marude_env()
 				caseStatus[key].rb.Reset()
+				caseStatus[key].done_chan = nil
 				_, err := run_cmd(value, caseStatus[key])
 
 				if err != nil {
@@ -365,6 +410,9 @@ func main() {
 			return
 		}
 	}
+
+	go cmd_queue_handler(queue_cmd)
+
 	Init_service(cfg, caseStatus)
 
 }
