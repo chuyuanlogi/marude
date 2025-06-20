@@ -257,6 +257,8 @@ func main() {
 				res_infolist := strings.Split(res_info, "\n")
 				if res_infolist[0][8:] == "Idle" {
 					m.Client_prog = "Idle"
+				} else if res_infolist[0][8:] == "Queued" {
+					m.Client_prog = "Queued"
 				} else {
 					statuslink := fmt.Sprintf(const_statuslink, get_ip(), cfg.Service.Port, k, casename)
 					m.Client_prog =

@@ -254,7 +254,7 @@ func fiber_service(cfg *CfgData, caseStatus map[string]*RunStatus) {
 				return c.SendString(str)
 			}
 
-			str := fmt.Sprintf("status: %s\ncmdline: %s\n", []string{"Idle", "Running", "Finished"}[s.status], s.cmdline)
+			str := fmt.Sprintf("status: %s\ncmdline: %s\n", []string{"Idle", "Running", "Finished", "Queued"}[s.status], s.cmdline)
 			return c.SendString(str)
 		}
 
